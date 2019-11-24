@@ -223,7 +223,7 @@ def make_atoms_from_doc(doc):
                         magmom=atom['magmom'],
                         charge=atom['charge'])
                    for atom in doc['atoms']['atoms']],
-                  cell=doc['atoms']['cell'],
+                  cell=doc['atoms']['cell']['array'],
                   pbc=doc['atoms']['pbc'],
                   info=doc['atoms']['info'],
                   constraint=[dict2constraint(constraint_dict)

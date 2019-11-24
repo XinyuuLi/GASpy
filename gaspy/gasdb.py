@@ -47,7 +47,7 @@ def get_mongo_collection(collection_tag):
     # Connect to the database/collection
     client = MongoClient(host=host, port=port, maxPoolSize=None)
     database = getattr(client, database_name)
-    database.authenticate(user, password)
+    #database.authenticate(user, password)
     collection = ConnectableCollection(database=database, name=collection_name)
 
     return collection

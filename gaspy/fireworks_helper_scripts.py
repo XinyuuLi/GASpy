@@ -161,7 +161,6 @@ def make_firework(atoms, fw_name, vasp_settings):
     firework = Firework([pass_vasp_functions, read_atoms_file, relax], name=fw_name)
     return firework
 
-
 def encode_atoms_to_trajhex(atoms):
     '''
     Encode a trajectory-formatted atoms object into a hex string.
@@ -215,7 +214,6 @@ def decode_trajhex_to_atoms(hex_, index=-1):
     # Clean up
     os.remove(fname)
     return atoms
-
 
 def submit_fwork(fwork, _testing=False):
     '''

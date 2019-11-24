@@ -35,59 +35,15 @@ def runVasp(fname_in, fname_out, vaspflags, npar=4):
     if np.dot(np.cross(atoms.cell[0], atoms.cell[1]), atoms.cell[2]) < 0:
         atoms.set_cell(atoms.cell[[1, 0, 2], :])
 
-    vasp_cmd = 'vasp_std'
-    os.environ['PBS_SERVER'] = 'gilgamesh.cheme.cmu.edu'
-
-    if 'PBS_NODEFILE' in os.environ:
-        NPROCS = NPROCS = len(open(os.environ['PBS_NODEFILE']).readlines())
-    elif 'SLURM_CLUSTER_NAME' in os.environ:
-        if 'SLURM_NPROCS' in os.environ:
-            # We're on cori haswell
-            NPROCS = int(os.environ['SLURM_NPROCS'])
-        else:
-            # we're on cori KNL, just one processor
-            NPROCS = 1
-
-    # If we're on Gilgamesh...
-    if 'PBS_NODEFILE' in os.environ and os.environ['PBS_SERVER'] == 'gilgamesh.cheme.cmu.edu':
-        vaspflags['npar'] = 4
-        vasp_cmd = '/home-research/zhongnanxu/opt/vasp-5.3.5/bin/vasp-vtst-beef-parallel'
-        NPROCS = NPROCS = len(open(os.environ['PBS_NODEFILE']).readlines())
-        mpicall = lambda x, y: 'mpirun -np %i %s' % (x, y)  # noqa: E731
-
-    # If we're on Arjuna...
-    elif 'SLURM_CLUSTER_NAME' in os.environ and os.environ['SLURM_CLUSTER_NAME'] == 'arjuna':
-        # If this is a GPU job...
-        if os.environ['CUDA_VISIBLE_DEVICES'] != 'NoDevFiles':
-            vaspflags['ncore'] = 1
-            vaspflags['kpar'] = 16
-            vaspflags['nsim'] = 8
-            vaspflags['lreal'] = 'Auto'
-            vasp_cmd = 'vasp_gpu'
-            mpicall = lambda x, y: 'mpirun -np %i %s' % (x, y)  # noqa: E731
-        # If this is a CPU job...
-        else:
-            if NPROCS > 16:
-                vaspflags['ncore'] = 4
-                vaspflags['kpar'] = 4
-            else:
-                vaspflags['kpar'] = 1
-                vaspflags['ncore'] = 4
-            mpicall = lambda x, y: 'mpirun -np %i %s' % (x, y)  # noqa: E731
-
-    # If we're on Cori, use SLURM. Note that we decrease the priority by 1000
-    # in order to prioritize other things higher, such as modeling and prediction
-    # in GASpy_regression
-    elif 'SLURM_CLUSTER_NAME' in os.environ and os.environ['SLURM_CLUSTER_NAME'] == 'cori':
-        # If we're on a Haswell node...
-        if os.environ['CRAY_CPU_TARGET'] == 'haswell' and 'knl' not in os.environ['PATH']:
-            NNODES = int(os.environ['SLURM_NNODES'])
-            vaspflags['kpar'] = NNODES
-            mpicall = lambda x, y: 'srun -n %d %s' % (x, y)  # noqa: E731
-        # If we're on a KNL node...
-        elif 'knl' in os.environ['PATH']:
-            mpicall = lambda x, y: 'srun -n %d -c8 --cpu_bind=cores %s' % (x*32, y)  # noqa: E731
-            vaspflags['ncore'] = 1
+    # If we're on UON rcg 
+    NPROCS = int(os.environ['NCPUS'])
+    queue=os.environ['PBS_QUEUE']
+    vaspflags['npar'] = 4
+    if 'xeon5' in str(queue):
+        vasp_cmd = 'vasp_std'
+    else:
+        vasp_cmd = '/home/ajp/bin/vasp_std_5.4.intelmpi'
+    mpicall = lambda x, y: 'mpirun -np %i %s' % (x, y)  # noqa: E731
 
     # Set the pseudopotential type by setting 'xc' in Vasp()
     if vaspflags['pp'].lower() == 'lda':
@@ -95,8 +51,8 @@ def runVasp(fname_in, fname_out, vaspflags, npar=4):
     elif vaspflags['pp'].lower() == 'pbe':
         vaspflags['xc'] = 'PBE'
 
-    pseudopotential = vaspflags['pp_version']
-    os.environ['VASP_PP_PATH'] = os.environ['VASP_PP_BASE'] + '/' + str(pseudopotential) + '/'
+    # pseudopotential = vaspflags['pp_version']
+    # s.environ['VASP_PP_PATH'] = os.environ['VASP_PP_BASE'] + '/' + str(pseudopotential) + '/'
     del vaspflags['pp_version']
 
     os.environ['VASP_COMMAND'] = mpicall(NPROCS, vasp_cmd)
@@ -168,7 +124,7 @@ def runVasp(fname_in, fname_out, vaspflags, npar=4):
     except OSError:
         pass
 
-    return str(atoms), open('all.traj', 'r').read().encode('hex'), finalimage.get_potential_energy()
+    return str(atoms), open('all.traj', 'rb').read().hex(), finalimage.get_potential_energy()
 
 
 def atoms_to_hex(atoms):
@@ -184,10 +140,9 @@ def atoms_to_hex(atoms):
     fname = str(uuid.uuid4()) + '.traj'
     atoms.write(fname)
     with open(fname) as fhandle:
-        _hex = fhandle.read().encode('hex')
+        _hex = fhandle.read().hex()
         os.remove(fname)
     return _hex
-
 
 def hex_to_file(fname_out, atomHex):
     '''
@@ -195,5 +150,5 @@ def hex_to_file(fname_out, atomHex):
     local fireworks job directories
     '''
     # Dump the hex encoded string to a local file
-    with open(fname_out, 'w') as fhandle:
-        fhandle.write(atomHex.decode('hex'))
+    with open(fname_out, 'wb') as fhandle:
+        fhandle.write(bytes.fromhex(atomHex))
